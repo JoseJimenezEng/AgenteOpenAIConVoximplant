@@ -108,7 +108,6 @@ wssVox.on('connection', (wsVox) => {
         console.log("Conexión a OpenAI establecida para este cliente.");
         // Incluir definiciones de funciones para uso de herramientas (function-calling)
         const sessionUpdate = {
-            "event_id": "event_1",
             "type": "session.update",
             "session": {
                 "modalities": ["text", "audio"],
@@ -119,7 +118,7 @@ wssVox.on('connection', (wsVox) => {
                 "input_audio_transcription": {
                     "model": "whisper-1",
                     "language": "es",
-                    "prompt": "Transcribe el siguiente audio en vivo. El audio proviene de teléfonos de hablantes en Colombia, principalmente con acento costeño. Por favor, captura fielmente la entonación, modismos y expresiones propias de la región Caribe, sin 'normalizar' el acento. Presta especial atención a las variaciones fonéticas y a los modismos locales para asegurar una transcripción precisa y natural.",
+                    "prompt": "Transcribe el siguiente audio en vivo..."
                 },
                 "turn_detection": {
                     "type": "server_vad",
@@ -130,9 +129,9 @@ wssVox.on('connection', (wsVox) => {
                 },
                 "temperature": 0.6,
                 "max_response_output_tokens": "inf",
-                // Definición de funciones para function-calling
-                "functions": [
+                "tools": [
                     {
+                        "type": "function",
                         "name": "send_email_notification",
                         "description": "Envía datos de reunión o cotización a un webhook para generar y enviar un correo electrónico.",
                         "parameters": {
@@ -149,7 +148,7 @@ wssVox.on('connection', (wsVox) => {
                                 "type": {
                                     "type": "string",
                                     "enum": ["reunion", "cotizacion"],
-                                    "description": "Tipo de notificación: 'reunion' para agendar reunión, 'cotizacion' para enviar cotización"
+                                    "description": "Tipo de notificación: 'reunion' o 'cotizacion'"
                                 },
                                 "fecha": {
                                     "type": "string",
@@ -163,10 +162,12 @@ wssVox.on('connection', (wsVox) => {
                             "required": ["email", "name", "type", "fecha"]
                         }
                     }
-                ]
+                ],
+                "tool_choice": "auto"
             }
         };
         wsVox.openAISocket.send(JSON.stringify(sessionUpdate));
+
     });
 
     wsVox.openAISocket.on("message", async (message) => {
@@ -276,8 +277,9 @@ wssVox.on('connection', (wsVox) => {
                     }
                 }
                 break;
+            default:
+                console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
 
-            // console.log("Evento de OpenAI no manejado: " + msg.type);
         }
     });
 
