@@ -277,8 +277,8 @@ wssVox.on('connection', (wsVox) => {
                     }
                 }
                 break;
-            default:
-                console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
+            // default:
+                // console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
 
         }
     });
