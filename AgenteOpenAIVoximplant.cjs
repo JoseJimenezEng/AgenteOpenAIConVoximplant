@@ -57,6 +57,7 @@ wssVox.on('connection', (wsVox) => {
                         msg_id = 0;
                         console.log("Limpiando buffer MANUAL de audio.");
                         if (usarBufferManual) {
+                            wsVox.send(JSON.stringify("interruption"));
                             clearInterval(sendAudioInterval);
                             sendAudioInterval = null;
                             audioBufferVox = Buffer.alloc(0);
@@ -278,7 +279,7 @@ wssVox.on('connection', (wsVox) => {
                 }
                 break;
             // default:
-                // console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
+            // console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
 
         }
     });
