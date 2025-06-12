@@ -2,7 +2,7 @@ const WebSocket = require('ws');
 const dotenv = require('dotenv');
 const axios = require('axios'); // Para llamadas HTTP al webhook de Make
 dotenv.config();
-
+let args = null;
 // Configuración de Deepgram y OpenAI
 const deepgramApiKey = process.env.DEEPGRAM_API_KEY;
 const deepgramUrl = process.env.DEEPGRAM_URL;
@@ -134,13 +134,13 @@ wssVox.on('connection', (wsVox) => {
                     {
                         "type": "function",
                         "name": "send_email_notification",
-                        "description": "Envía datos de reunión o cotización a un webhook para generar y enviar un correo electrónico.",
+                        "description": "Envía datos de reunión o cotización a un webhook para generar y enviar un correo electrónico. Debes parsear el correo a formato de correo. No usar caracteres invalidos",
                         "parameters": {
                             "type": "object",
                             "properties": {
                                 "email": {
                                     "type": "string",
-                                    "description": "Correo electrónico del usuario o destinatario"
+                                    "description": "Correo electrónico del usuario o destinatario. Debes parsear el correo a formato de correo. No usar caracteres invalidos"
                                 },
                                 "name": {
                                     "type": "string",
@@ -157,7 +157,7 @@ wssVox.on('connection', (wsVox) => {
                                 },
                                 "detalles": {
                                     "type": "string",
-                                    "description": "Detalles adicionales para la cotización o contexto"
+                                    "description": "Detalles adicionales para la cotización o contexto. Si no hay suficientes detalles simplemente invéntatelos"
                                 }
                             },
                             "required": ["email", "name", "type", "fecha"]
@@ -181,47 +181,48 @@ wssVox.on('connection', (wsVox) => {
         }
 
         switch (msg.type) {
-            case "conversation.item.created":
-
-                if (msg.item.type === "function_call") {
-                    if (msg.item.name === 'send_email_notification') {
-                        try {
-                            console.log(msg.item.arguments)
-                            const args = JSON.parse(msg.item.arguments);
-                            console.log('Function call para enviar email:', args);
-                            // Llamar al webhook de Make
-                            if (!makeWebhookUrl) {
-                                console.error('MAKE_WEBHOOK_URL no está configurado');
-                            } else {
-                                // Construir payload:
-                                const payload = {
-                                    email: args.email,
-                                    name: args.name,
-                                    tipo: args.type,
-                                    fecha: args.fecha,
-                                    detalles: args.detalles || ''
-                                };
-                                // Enviar petición POST al webhook
-                                axios.post(makeWebhookUrl, payload)
-                                    .then(response => {
-                                        console.log('Webhook Make respondido:', response.status);
-                                        // Opcional: notificar al usuario en la conversación
-                                        const confirmMsg = `✅ Se ha enviado ${args.type === 'reunion' ? 'la invitación de reunión' : 'la cotización'} al correo ${args.email}.`;
-                                        // Enviar mensaje de texto al cliente Vox para que escuche confirmación
-                                        if (wsVox.readyState === WebSocket.OPEN) {
-                                            const msgTexto = JSON.stringify({ event: 'text', content: confirmMsg });
-                                            wsVox.send(msgTexto);
-                                        }
-                                    })
-                                    .catch(error => {
-                                        console.error('Error al llamar al webhook Make:', error.message);
-                                    });
-                            }
-                        } catch (error) {
-                            console.error('Error parseando argumentos de function_call:', error);
+            case "response.function_call_arguments.done":
+                args = JSON.parse(msg.arguments);
+                if (args !== null) {
+                    console.log("ARFUMENTOS " + args)
+                    try {
+                        console.log('Function call para enviar email:', args);
+                        // Llamar al webhook de Make
+                        if (!makeWebhookUrl) {
+                            console.error('MAKE_WEBHOOK_URL no está configurado');
+                        } else {
+                            // Construir payload:
+                            const payload = {
+                                "email": args.email,
+                                "name": args.name,
+                                "tipo": args.type,
+                                "fecha": args.fecha,
+                                "detalles": args.detalles || ''
+                            };
+                            console.log(payload)
+                            // Enviar petición POST al webhook
+                            axios.post(makeWebhookUrl, payload)
+                                .then(response => {
+                                    console.log('Webhook Make respondido:', response.status);
+                                    // Opcional: notificar al usuario en la conversación
+                                    const confirmMsg = `✅ Se ha enviado ${args.type === 'reunion' ? 'la invitación de reunión' : 'la cotización'} al correo ${args.email}.`;
+                                    // Enviar mensaje de texto al cliente Vox para que escuche confirmación
+                                    if (wsVox.readyState === WebSocket.OPEN) {
+                                        const msgTexto = JSON.stringify({ event: 'text', content: confirmMsg });
+                                        wsVox.send(msgTexto);
+                                    }
+                                })
+                                .catch(error => {
+                                    console.error('Error al llamar al webhook Make:', error.message);
+                                });
                         }
+                    } catch (error) {
+                        console.error('Error parseando argumentos de function_call:', error);
                     }
                 }
+                break
+            case "conversation.item.created":
+
                 // Enviar señal de inicio de transmisión a este cliente
                 startTime = Date.now();
                 const startConnection = {
@@ -354,4 +355,4 @@ function enviarAudio(voximplantData, wsVox) {
 }
 
 // Define el prompt (puedes mantener el contenido completo que necesites)
-const prompt = "eres un agente de ventas que agenda reuniones en caso de no concretar la venta o  envia cotizaciones en caso de concretar la venta. Si detectas que el usuario provee email o nombre, almacénalos en contexto. Cuando corresponda, llama a la función send_email_notification con los parámetros adecuados.";
+const prompt = "eres un agente de ventas que agenda reuniones en caso de no concretar la venta o  envia cotizaciones en caso de concretar la venta. Si detectas que el usuario provee email o nombre, almacénalos en contexto. Cuando corresponda, llama a la función send_email_notification con los parámetros adecuados.  Debes parsear el correo a formato de correo. No usar caracteres invalidos. En caso de ser cotización y no hay suficiente detalles invéntate los datos de la cotización";
