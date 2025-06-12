@@ -182,6 +182,45 @@ wssVox.on('connection', (wsVox) => {
 
         switch (msg.type) {
             case "conversation.item.created":
+
+                if (msg.item.type === "function_call") {
+                    if (msg.item.name === 'send_email_notification') {
+                        try {
+                            const args = JSON.parse(msg.function_call.arguments);
+                            console.log('Function call para enviar email:', args);
+                            // Llamar al webhook de Make
+                            if (!makeWebhookUrl) {
+                                console.error('MAKE_WEBHOOK_URL no está configurado');
+                            } else {
+                                // Construir payload:
+                                const payload = {
+                                    email: args.email,
+                                    name: args.name,
+                                    tipo: args.type,
+                                    fecha: args.fecha,
+                                    detalles: args.detalles || ''
+                                };
+                                // Enviar petición POST al webhook
+                                axios.post(makeWebhookUrl, payload)
+                                    .then(response => {
+                                        console.log('Webhook Make respondido:', response.status);
+                                        // Opcional: notificar al usuario en la conversación
+                                        const confirmMsg = `✅ Se ha enviado ${args.type === 'reunion' ? 'la invitación de reunión' : 'la cotización'} al correo ${args.email}.`;
+                                        // Enviar mensaje de texto al cliente Vox para que escuche confirmación
+                                        if (wsVox.readyState === WebSocket.OPEN) {
+                                            const msgTexto = JSON.stringify({ event: 'text', content: confirmMsg });
+                                            wsVox.send(msgTexto);
+                                        }
+                                    })
+                                    .catch(error => {
+                                        console.error('Error al llamar al webhook Make:', error.message);
+                                    });
+                            }
+                        } catch (error) {
+                            console.error('Error parseando argumentos de function_call:', error);
+                        }
+                    }
+                }
                 // Enviar señal de inicio de transmisión a este cliente
                 startTime = Date.now();
                 const startConnection = {
@@ -239,47 +278,6 @@ wssVox.on('connection', (wsVox) => {
                 break;
 
             // Manejo de llamada de función function-calling de OpenAI:
-            case "response.function_call":
-                // Ejemplo de estructura: msg.function_call.name y msg.function_call.arguments (JSON string)
-                if (msg.function_call && msg.function_call.name === 'send_email_notification') {
-                    try {
-                        const args = JSON.parse(msg.function_call.arguments);
-                        console.log('Function call para enviar email:', args);
-                        // Llamar al webhook de Make
-                        if (!makeWebhookUrl) {
-                            console.error('MAKE_WEBHOOK_URL no está configurado');
-                        } else {
-                            // Construir payload:
-                            const payload = {
-                                email: args.email,
-                                name: args.name,
-                                tipo: args.type,
-                                fecha: args.fecha,
-                                detalles: args.detalles || ''
-                            };
-                            // Enviar petición POST al webhook
-                            axios.post(makeWebhookUrl, payload)
-                                .then(response => {
-                                    console.log('Webhook Make respondido:', response.status);
-                                    // Opcional: notificar al usuario en la conversación
-                                    const confirmMsg = `✅ Se ha enviado ${args.type === 'reunion' ? 'la invitación de reunión' : 'la cotización'} al correo ${args.email}.`;
-                                    // Enviar mensaje de texto al cliente Vox para que escuche confirmación
-                                    if (wsVox.readyState === WebSocket.OPEN) {
-                                        const msgTexto = JSON.stringify({ event: 'text', content: confirmMsg });
-                                        wsVox.send(msgTexto);
-                                    }
-                                })
-                                .catch(error => {
-                                    console.error('Error al llamar al webhook Make:', error.message);
-                                });
-                        }
-                    } catch (error) {
-                        console.error('Error parseando argumentos de function_call:', error);
-                    }
-                }
-                break;
-            // default:
-            // console.log("Evento de OpenAI no manejado: " + JSON.stringify(msg));
 
         }
     });
