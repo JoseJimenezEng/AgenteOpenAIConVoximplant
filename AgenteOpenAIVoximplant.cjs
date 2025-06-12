@@ -186,6 +186,7 @@ wssVox.on('connection', (wsVox) => {
                 if (msg.item.type === "function_call") {
                     if (msg.item.name === 'send_email_notification') {
                         try {
+                            console.log(msg.item.arguments)
                             const args = JSON.parse(msg.item.arguments);
                             console.log('Function call para enviar email:', args);
                             // Llamar al webhook de Make
